@@ -150,10 +150,7 @@ sub statsCalc(@) {	# array of values to stat, returns Y max, array to plot
 	}
 # get values
 	foreach my $value (@values) {
-		my $val = int($value);
-		#~ $val = sprintf "%1f", int($value);
-		#~ $val = int($val);
-		$stats{$val}++,
+		$stats{int($value)}++,
 	}
 # Extract X, Y
 	foreach my $value ( keys %stats) {
