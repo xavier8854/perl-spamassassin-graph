@@ -24,13 +24,15 @@
 
 use strict;
 use GD::Graph::bars;
-use List::Util qw( min max );
+use POSIX qw(strftime);
 
 #####
 ## PROTOS
 #####
 sub extractScore ($);	# Filename
 sub statsCalc(@);	# array of values to stat
+sub Min (@);
+sub Max (@);
 
 #####
 ## CONSTANTS
@@ -53,22 +55,24 @@ opendir (my $dh, $SEARCHDIR)
 while (my $file = readdir $dh) {
 	next if $file =~ /^[.]/;
 	if (-f "$SEARCHDIR/$file") {
-		push (@scores, extractScore ("$SEARCHDIR/$file"));
+		my $score = extractScore ("$SEARCHDIR/$file");
+		push (@scores, $score) if ($score != -999);
 	}
 }
 closedir ($dh);
 
 my ($max, @stats) = statsCalc(@scores);
+my $xlabel = sprintf ("%s %s", "Score on ", strftime ('%Y-%m-%d %T', localtime()));
 
 my $graph = GD::Graph::bars->new(800, 600);
 $graph->set(
 	transparent			=> 0,
-	x_label				=> 'Score',
+	x_label				=> $xlabel,
 	y_label				=> 'Occurences',
 	x_label_position	=> 1,
 	y_label_position	=> 0,
 	title				=> 'Spam Statistics',
-	logo				=> 'logo.png',
+	logo				=> '/root/bin/spamstats/logo.png',
 	logo_position		=> 'UL',
 	logo_resize			=> 0.33,
 ) or die $graph->error;
@@ -102,7 +106,7 @@ $graph->set(
 ) or die $graph->error;
 
 my $gd = $graph->plot(\@stats) or die $graph->error;
-open(IMG, '>', 'graph.png') or die $!;
+open(IMG, '>', '/usr/local/www/html/groumpf.org/FreeBSD/graph.png') or die $!;
 binmode IMG;
 print IMG $gd->png;
 close IMG;
@@ -118,6 +122,7 @@ exit ($rc);
 sub extractScore ($) {	# Filename, Expression, returns score
 	my $filename = shift;
 	my $result = '';
+	my $found = 0;
 
 	open(my $fh, "<", $filename)
 		or die "Can't open $filename $!\n";
@@ -127,11 +132,12 @@ sub extractScore ($) {	# Filename, Expression, returns score
 		if ( $line =~ /^X-Spam-Status: [NoYes]+, score=([0-9.-]+)/) {
 			chomp ($1);
 			$result = $1;
+			$found = 1;
 			last;
 		}
 	}
 	close ($fh);
-	return $result;
+	return $found ? $result : -999;
 }
 
 sub statsCalc(@) {	# array of values to stat, returns Y max, array to plot
@@ -141,8 +147,8 @@ sub statsCalc(@) {	# array of values to stat, returns Y max, array to plot
 	my @yplot;
 	my @stats;
 
-	my $min = int (min (@values));
-	my $max = int (max (@values));
+	my $min = int (Min (\@values));
+	my $max = int (Max (\@values));
 
 # Init hash;
 	for (my $i=$min; $i<=$max; $i++) {
@@ -159,7 +165,26 @@ sub statsCalc(@) {	# array of values to stat, returns Y max, array to plot
 	}
 	$stats[0] = \@xplot;
 	$stats[1] = \@yplot;
-	return (max(@yplot), @stats);
+	return (Max(\@yplot), @stats);
+}
+
+
+sub Min (@) {
+	my $arrayRef = shift;
+	my $ret = $arrayRef->[0];
+	foreach my $value (@{$arrayRef}) {
+		$ret = $value if ($value < $ret );
+	}
+	return $ret;
+}
+
+sub Max (@) {
+	my $arrayRef = shift;
+	my $ret = $arrayRef->[0];
+	foreach my $value (@{$arrayRef}) {
+		$ret = $value if ($value > $ret );
+	}
+	return $ret;
 }
 
 =pod
